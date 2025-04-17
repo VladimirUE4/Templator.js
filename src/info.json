@@ -1,0 +1,12 @@
+{
+  "title": "Your Report Title",
+  "author": {
+    "age":30,
+    "name": "Your Name",
+    "email": "your@email.com"
+  },
+  "items": [
+    { "name": "First Item", "value": 42 },
+    { "name": "Second Item", "value": 24 }
+  ]
+}

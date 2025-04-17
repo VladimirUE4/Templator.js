@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>Markup.js: Examples</title>
+
+<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Inconsolata|Open+Sans:400,700" />
+
+<style type="text/css">
+body     { font-family: Open Sans, Helvetica, Arial, sans-serif; margin: 15px; }
+h1       { font-size: 200%; color: #F60; letter-spacing: -1px; }
+h2       { font-size: 140%; color: #F60; }
+h3, th   { font-size: 110%; color: #06C; }
+.error   { color: #FFF; background-color: red; padding: 0 2px; }
+p, ol    { margin: 0; }
+pre      { font-family: Inconsolata, Courier; }
+table    { width: 100%; border-spacing: 4px; margin: 25px 0; }
+tr       { }
+td, th   { text-align: left; border-radius: 4px; }
+td       { width: 50%; padding: 8px; vertical-align: top; }
+.input   { background-color: #000; color: #FFF; white-space: pre; font-family: Inconsolata, Courier; }
+.output  { background-color: #EEE; }
+pre      { }
+.note    { background-color: #FFC; }
+.boy     { color: #36C; }
+.girl    { color: #F69; }
+.on      { color: #F00; }
+.off     { color: #999; }
+</style>
+
+<script src="../src/markup.min.js"></script>
+<script src="../src/extras/strings.js"></script>
+<script src="../src/extras/dates.js"></script>
+<script src="../src/extras/arrays.js"></script>
+<script src="../src/lib/moment.min.js"></script>
+<script src="../src/lib/accounting.min.js"></script>
+
+<script>
+function init() {
+    var context = {
+        name: { first: "John", last: "Doe", middle: null },
+        age: 21,
+        birthday: "Thu Aug 01 1991 00:00:00 GMT-0400 (EDT)",
+        motto: "Lorem ipsum dolor sit amet",
+        post: "Check it out! http://bit.ly/9HpzwA",
+        siblings: ["Jack", "Jake", "Jim"],
+        friends: [
+            { name: "Justin", age: 12, gender: "M" },
+            { name: "Jenny", age: 15, gender: "F" },
+            { name: "Julie", age: 8, gender: "F" },
+            { name: "Jackie", age: 32, gender: "F" },
+            { name: "Joey", age: 14, gender: "M" }
+        ]
+    };
+
+    Mark.globals.app = {
+        name: "Example App",
+        version: "1.2.3"
+    };
+
+    Mark.includes.greeting = "Welcome, <b>{{name.first}}!</b>";
+
+    Mark.includes.status = function () {
+        return "You are here: " + location.href;
+    };
+
+    var elems = document.getElementsByClassName("template"),
+        template,
+        tbody,
+        row,
+        t1,
+        t2;
+
+    for (var i = 0; i < elems.length; i++) {
+        template = elems[i].firstChild.textContent.trim();
+        tbody = document.getElementById("results-" + elems[i].dataset.idx);
+
+        row = document.createElement("tr");
+
+        t1 = document.createElement("td");
+        t1.className = "input";
+        t1.appendChild(document.createTextNode(template));
+
+        t2 = document.createElement("td");
+        t2.className = "output";
+        t2.innerHTML = Mark.up(template, context);
+
+        row.appendChild(t1);
+        row.appendChild(t2);
+
+        tbody.appendChild(row);
+    }
+}
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{name.first}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{name.last|upcase}}, {{name.first}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>
+    {{name}}
+        {{last|upcase}}, {{first}}
+    {{/name}}
+</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{name.middle|blank>N/A}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{motto|tease>3}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{motto|chop>10}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{age|ormore>18|choose>Adult>Minor}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{siblings|size}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{siblings|join>, }}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{siblings|reverse|join> + }}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{siblings.0}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<p>{{friends.0.name}}</p>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{siblings}}
+        <li>{{.}}-{{#}}</li>
+    {{/siblings}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{siblings|reverse}}
+        <li>{{.|upcase}}-{{##}}</li>
+    {{/siblings}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends}}
+        <li>{{name}}, {{age}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>name}}
+        <li>{{name}}, {{age}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>age}}
+        <li>{{name}}, {{age}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>age|reverse}}
+        <li>{{name}}, {{age}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>gender}}
+        <li class="{{gender|toggle>M,F>boy,girl}}">
+            {{name}}, {{gender}}
+        </li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|limit>3}}
+        <li>{{name}}, {{age}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends}}
+        {{if gender|equals>F}}
+            <li class="girl">{{name}}, {{age}}</li>
+        {{/if}}
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends}}
+        {{if name|like>Ju}}
+            <li><b>{{name|upcase}}, {{age}}</b></li>
+        {{else}}
+            <li>{{name}}</li>
+        {{/if}}
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>age}}
+        <li>
+            {{name}}, {{age}}
+            {{if #|first}}
+                <b>(Youngest)</b>
+            {{/if}}
+            {{if #|last}}
+                <b>(Oldest)</b>
+            {{/if}}
+        </li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="0">
+<ol>
+    {{friends|sort>age}}
+        <li class="{{#|divisible>3|choose>on>off}}">
+            {{name}}, {{age|fix>2}}
+        </li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="1">
+{{greeting}} Thanks for visiting!
+</script>
+
+<script type="text/template" class="template" data-idx="1">
+{{greeting|upcase}} Have a great day!
+</script>
+
+<script type="text/template" class="template" data-idx="1">
+{{greeting}} {{status}}
+</script>
+
+<script type="text/template" class="template" data-idx="2">
+{{name.first|repeat>5>, }}
+</script>
+
+<script type="text/template" class="template" data-idx="2">
+{{post|links}}
+</script>
+
+<script type="text/template" class="template" data-idx="2">
+{{birthday|moment>M/D/YYYY}}
+</script>
+
+<script type="text/template" class="template" data-idx="2">
+<ol>
+    {{friends|sift>gender>F}}
+        <li class="girl">{{name}}</li>
+    {{/friends}}
+</ol>
+</script>
+
+<script type="text/template" class="template" data-idx="2">
+{{if friends|has>gender>F}}
+    Girls!
+{{/if}}
+</script>
+
+<script type="text/template" class="template" data-idx="3">
+{{app.name}} {{app.version}}
+</script>
+
+<script type="text/template" class="template" data-idx="3">
+<ul>
+    {{friends}}
+        <li>{{name}} {{app.version}}</li>
+    {{/friends}}
+</ul>
+</script>
+
+<script type="text/template" class="template" data-idx="4">
+{{birthday|moment>M/D/YYYY|set>bday}}
+
+Birthday: {{bday}}
+</script>
+
+<script type="text/template" class="template" data-idx="4">
+{{name.first|set>fname}}
+
+Name: {{fname|upcase}}
+</script>
+
+</head>
+
+<body onload="init()">
+
+<h1>Markup.js: Examples</h1>
+
+<section>
+
+<h2>Basic Usage</h2>
+
+<h3>context</h3>
+
+<pre>
+{
+    name: { first: "John", last: "Doe", middle: null },
+    age: 21,
+    birthday: "Thu Aug 01 1991 00:00:00 GMT-0400 (EDT)",
+    motto: "Lorem ipsum dolor sit amet",
+    post: "Check it out! http://bit.ly/9HpzwA",
+    siblings: ["Jack", "Jake", "Jim"],
+    friends: [
+        { name: "Justin", age: 12, gender: "M" },
+        { name: "Jenny",  age: 15, gender: "F" },
+        { name: "Julie",  age: 8,  gender: "F" },
+        { name: "Jackie", age: 32, gender: "F" },
+        { name: "Joey",   age: 14, gender: "M" }
+    ]
+}
+</pre>
+
+<table>
+    <thead>
+        <tr>
+            <th>template</th>
+            <th>Mark.up(template, context)</th>
+        </tr>
+    </thead>
+    <tbody id="results-0">
+    </tbody>
+</table>
+
+</section>
+
+<section>
+
+<h2>Includes</h2>
+
+<p><span class="note">You can include templates <em>inside</em> other templates:</span></p>
+
+<pre>
+Mark.includes.greeting = "Welcome, &lt;b&gt;{{name.first}}!&lt;/b&gt;";
+
+Mark.includes.status = function () {
+    return "You are here: " + location.href;
+};
+</pre>
+
+<table>
+    <thead>
+        <tr>
+            <th>template</th>
+            <th>Mark.up(template, context)</th>
+        </tr>
+    </thead>
+    <tbody id="results-1">
+    </tbody>
+</table>
+
+</section>
+
+<section>
+
+<h2>Custom Pipes</h2>
+
+<p><span class="note">You can write your own pipes:</span></p>
+
+<pre>
+Mark.pipes.shout = function (str, n) {
+    return str + new Array(parseInt(n || 1) + 1).join("!");
+};
+</pre>
+
+<p>Here are some more examples. Check out the source code in <a href="../src/extras/">src/extras</a>.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>template</th>
+            <th>Mark.up(template, context)</th>
+        </tr>
+    </thead>
+    <tbody id="results-2">
+    </tbody>
+</table>
+
+</section>
+
+<section>
+
+<h2>Globals</h2>
+
+<p><span class="note">You can create global variables for use anywhere in a template:</span></p>
+
+<pre>
+Mark.globals.app = {
+    name: "Example App",
+    version: "1.2.3"
+};
+</pre>
+
+<table>
+    <thead>
+        <tr>
+            <th>template</th>
+            <th>Mark.up(template, context)</th>
+        </tr>
+    </thead>
+    <tbody id="results-3">
+    </tbody>
+</table>
+
+<p><span class="note">You can even set global variables <em>inside a template</em> with the 'set' pipe:</span></p>
+
+<table>
+    <thead>
+        <tr>
+            <th>template</th>
+            <th>Mark.up(template, context)</th>
+        </tr>
+    </thead>
+    <tbody id="results-4">
+    </tbody>
+</table>
+
+<!--
+<h3>Backtick expressions</h3>
+
+[TODO]
+-->
+
+</body>
+
+</html>

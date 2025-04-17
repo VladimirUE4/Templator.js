@@ -1,0 +1,12 @@
+---
+report:
+  title: "[[title]]"
+  author:
+    age: @@author.age@@
+    name:  "[[author.name]]"
+    email: "[[author.email]]"
+sections:
+[[items]]
+  - name:  "[[.name]]"
+    value: [[.value]]
+[[/items]]
