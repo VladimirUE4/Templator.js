@@ -1,18 +1,20 @@
 {
-  "options": {
-    "delimiters": {
-      "open": "{{",
-      "close": "}}"
-    }
-  },
-  "files": {
-    "template.yaml": {
-      "openDelimiter": "[[",
-      "closeDelimiter": "]]"
+  "templator-js": {
+    "options": {
+      "delimiters": {
+        "open": "{{",
+        "close": "}}"
+      }
     },
-    "template3.yaml": {
-      "openDelimiter": "[[",
-      "closeDelimiter": "]]"
+    "files": {
+      "template.yaml": {
+        "openDelimiter": "[[",
+        "closeDelimiter": "]]"
+      },
+      "template3.yaml": {
+        "openDelimiter": "[[",
+        "closeDelimiter": "]]"
+      }
     }
   },
   "app_name": "MyApp",

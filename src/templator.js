@@ -5,11 +5,12 @@
  * - Processing entire directories
  * - Custom delimiters per file via JSON configuration
  * - Single file operation or batch processing
+ * - Configuration via 'templator-js' field in JSON
  */
 
 const fs = require('fs');
 const path = require('path');
-const Mark = require('./markup.js'); // Markup.js est supposé être dans le même dossier
+const Mark = require('./markup.js');
 
 // Parse CLI arguments
 const argv = process.argv.slice(2);
@@ -62,7 +63,14 @@ let config = { files: {} };
 if (configPath) {
   try {
     const configData = fs.readFileSync(configPath, 'utf8');
-    config = JSON.parse(configData);
+    const configObj = JSON.parse(configData);
+    
+    // Support for new 'templator-js' configuration structure
+    if (configObj['templator-js']) {
+      config = configObj['templator-js'];
+    } else {
+      config = configObj;
+    }
     
     if (!config.files) {
       config.files = {};
@@ -84,14 +92,35 @@ if (configPath) {
 }
 
 // Read and parse context JSON
-// Lire et parser le contexte JSON
 let context;
 try {
   const jsonData = fs.readFileSync(infoPath, 'utf8');
   const jsonObj = JSON.parse(jsonData);
   
-  // Extraire la configuration si elle existe
-  if (jsonObj.options) {
+  // Extract configuration if it exists under 'templator-js' field
+  if (jsonObj['templator-js']) {
+    const templatorConfig = jsonObj['templator-js'];
+    
+    // Set global delimiters from config if present
+    if (templatorConfig.options && templatorConfig.options.delimiters) {
+      if (templatorConfig.options.delimiters.open) {
+        globalOpenDelimiter = templatorConfig.options.delimiters.open;
+      }
+      if (templatorConfig.options.delimiters.close) {
+        globalCloseDelimiter = templatorConfig.options.delimiters.close;
+      }
+    }
+    
+    // Get file-specific configurations
+    if (templatorConfig.files) {
+      config.files = templatorConfig.files;
+    }
+    
+    // Remove the configuration to not treat it as data
+    delete jsonObj['templator-js'];
+  } 
+  // Backward compatibility with old structure
+  else if (jsonObj.options && jsonObj.files) {
     if (jsonObj.options.delimiters) {
       if (jsonObj.options.delimiters.open) {
         globalOpenDelimiter = jsonObj.options.delimiters.open;
@@ -101,27 +130,26 @@ try {
       }
     }
     
-    if (jsonObj.files) {
-      config.files = jsonObj.files;
-    }
+    config.files = jsonObj.files;
     
-    // Supprimer les options de configuration pour ne pas les considérer comme des données
+    // Delete to not include in data context
     delete jsonObj.options;
     delete jsonObj.files;
   }
   
   context = jsonObj;
   
-  // Assurer que context.items est un tableau
+  // Ensure context.items is an array
   if (context.items === undefined) {
     context.items = [];
   } else if (!(context.items instanceof Array)) {
-    context.items = [context.items];
+    context.items = [context.items];  // Convert to array if not already
   }
 } catch (err) {
   console.error(`Error reading or parsing JSON file at ${infoPath}: ${err.message}`);
   process.exit(3);
 }
+
 /**
  * Renders a single template file with the specified context and delimiters
  */
