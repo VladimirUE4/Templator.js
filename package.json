@@ -7,6 +7,7 @@
         "name": "VladimirUE4"
     },
     "files": [
+        "src/templator.js",
         "src/markup.js",
         "src/markup.min.js",
         "README.md"
