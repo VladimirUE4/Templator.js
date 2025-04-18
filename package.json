@@ -21,8 +21,8 @@
         "type" : "git",
         "url" : "https://github.com/VladimirUE4/Templator.js.git"
     },
-    "main": "./src/markup.js",
-    "bin": "./src/markup.js",
+    "main": "./src/templator.js",
+    "bin": "./src/templator.js",
     "bugs": {
         "url" : "https://github.com/VladimirUE4/Templator.js/issues"
     }
