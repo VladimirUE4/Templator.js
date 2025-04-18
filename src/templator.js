@@ -1,253 +1,199 @@
 #!/usr/bin/env node
 /**
- * Enhanced Templator CLI
- * Renders templates using Markup.js with support for:
- * - Processing entire directories
- * - Custom delimiters per file via JSON configuration
- * - Single file operation or batch processing
- * - Configuration via 'templator-js' field in JSON
+ * Merged Templator CLI
+ * Combines enhanced templator-js features (custom delimiters, file-specific config)
+ * with additional helpers (shell execution, zipping, flexible templating)
  */
 
 const fs = require('fs');
 const path = require('path');
-const Mark = require('./markup.js');
+const Mark = require('templator-js');
+const mkdirp = require('mkdirp');
+const shell = require('shelljs');
+const EasyZip = require('easy-zip').EasyZip;
+const minimist = require('minimist');
 
 // Parse CLI arguments
-const argv = process.argv.slice(2);
-let configPath = null;
-let globalOpenDelimiter = '{{';
-let globalCloseDelimiter = '}}';
-let templateDir = null;
-let outputDir = null;
-let infoPath = null;
-let templatePath = null;
-let outPath = null;
-let isDirectoryMode = false;
-
-// Parse arguments
-for (let i = 0; i < argv.length; i++) {
-  const arg = argv[i];
-  if (arg === '--config' || arg === '-f') {
-    configPath = argv[++i];
-  } else if (arg === '--openDelimiter' || arg === '-o') {
-    globalOpenDelimiter = argv[++i];
-  } else if (arg === '--closeDelimiter' || arg === '-c') {
-    globalCloseDelimiter = argv[++i];
-  } else if (arg === '--templateDir' || arg === '-t') {
-    templateDir = argv[++i];
-    isDirectoryMode = true;
-  } else if (arg === '--outputDir' || arg === '-d') {
-    outputDir = argv[++i];
-  } else if (!infoPath) {
-    infoPath = arg;
-  } else if (!templatePath) {
-    templatePath = arg;
-  } else if (!outPath) {
-    outPath = arg;
+const parameters = minimist(process.argv.slice(2), {
+  boolean: ['zip', 'help', 'debug'],
+  string: ['config', 'configuration', 'openDelimiter', 'closeDelimiter', 'templateDir', 'templates', 'outputDir', 'destination'],
+  alias: {
+    f: 'config',
+    h: 'help',
+    o: 'openDelimiter',
+    c: 'closeDelimiter',
+    t: 'templateDir',
+    d: 'outputDir'
+  },
+  default: {
+    templates: '.',
+    destination: 'generated'
   }
+});
+
+// Helper: show usage
+function help() {
+  console.log(`
+Usage:
+  # Batch directory mode:
+  templator --config path/to/tplConfig.json --configuration path/to/context.json \
+            --templateDir path/to/templates --outputDir path/to/output [--zip] [--debug]
+
+  # Single-file mode:
+  templator --config path/to/tplConfig.json --configuration path/to/context.json \
+            --templates path/to/template.txt [--openDelimiter '{{'] [--closeDelimiter '}}'] \
+            [--destination output.txt] [--debug]
+
+Options:
+  --config, -f            Templator-js configuration JSON (delimiters, per-file options)
+  --configuration         Context data JSON for templates
+  --templateDir, -t       Templates directory (batch mode)
+  --templates             Single template file path or fallback dir
+  --outputDir, -d         Output directory for batch mode
+  --destination           Output file path for single-file mode
+  --openDelimiter, -o     Override global opening delimiter
+  --closeDelimiter, -c    Override global closing delimiter
+  --zip                   Zip the output directory after batch processing
+  --debug                 Print debug information
+  --help, -h              Show this help message
+  `);
 }
 
-// Validate inputs
-if (isDirectoryMode && (!infoPath || !templateDir || !outputDir)) {
-  console.error('Directory mode usage: templator.js --config <config.json> --templateDir <template_dir> --outputDir <output_dir> <info.json>');
-  process.exit(1);
-}
-
-if (!isDirectoryMode && (!infoPath || !templatePath)) {
-  console.error('Single file usage: templator.js [--config <config.json>] [--openDelimiter <open>] [--closeDelimiter <close>] <info.json> <template.yaml> [output.txt]');
-  process.exit(1);
-}
-
-// Load configuration if specified
-let config = { files: {} };
-if (configPath) {
+// Load templator-js config (delimiters, file-specific settings)
+let tplConfig = { files: {} };
+let globalOpen = parameters.openDelimiter || '{{';
+let globalClose = parameters.closeDelimiter || '}}';
+if (parameters.config) {
   try {
-    const configData = fs.readFileSync(configPath, 'utf8');
-    const configObj = JSON.parse(configData);
-    
-    // Support for new 'templator-js' configuration structure
-    if (configObj['templator-js']) {
-      config = configObj['templator-js'];
-    } else {
-      config = configObj;
-    }
-    
-    if (!config.files) {
-      config.files = {};
-    }
-    
-    // Set global delimiters from config if present
-    if (config.options && config.options.delimiters) {
-      if (config.options.delimiters.open) {
-        globalOpenDelimiter = config.options.delimiters.open;
-      }
-      if (config.options.delimiters.close) {
-        globalCloseDelimiter = config.options.delimiters.close;
-      }
+    const raw = fs.readFileSync(parameters.config, 'utf8');
+    const obj = JSON.parse(raw);
+    tplConfig = obj['templator-js'] || obj;
+    tplConfig.files = tplConfig.files || {};
+    if (tplConfig.options && tplConfig.options.delimiters) {
+      if (tplConfig.options.delimiters.open)  globalOpen = tplConfig.options.delimiters.open;
+      if (tplConfig.options.delimiters.close) globalClose = tplConfig.options.delimiters.close;
     }
   } catch (err) {
-    console.error(`Error reading or parsing config file at ${configPath}: ${err.message}`);
+    console.error(`Error loading templator config at ${parameters.config}: ${err.message}`);
     process.exit(2);
   }
 }
 
-// Read and parse context JSON
-let context;
-try {
-  const jsonData = fs.readFileSync(infoPath, 'utf8');
-  const jsonObj = JSON.parse(jsonData);
-  
-  // Extract configuration if it exists under 'templator-js' field
-  if (jsonObj['templator-js']) {
-    const templatorConfig = jsonObj['templator-js'];
-    
-    // Set global delimiters from config if present
-    if (templatorConfig.options && templatorConfig.options.delimiters) {
-      if (templatorConfig.options.delimiters.open) {
-        globalOpenDelimiter = templatorConfig.options.delimiters.open;
-      }
-      if (templatorConfig.options.delimiters.close) {
-        globalCloseDelimiter = templatorConfig.options.delimiters.close;
-      }
-    }
-    
-    // Get file-specific configurations
-    if (templatorConfig.files) {
-      config.files = templatorConfig.files;
-    }
-    
-    // Remove the configuration to not treat it as data
-    delete jsonObj['templator-js'];
-  } 
-  // Backward compatibility with old structure
-  else if (jsonObj.options && jsonObj.files) {
-    if (jsonObj.options.delimiters) {
-      if (jsonObj.options.delimiters.open) {
-        globalOpenDelimiter = jsonObj.options.delimiters.open;
-      }
-      if (jsonObj.options.delimiters.close) {
-        globalCloseDelimiter = jsonObj.options.delimiters.close;
-      }
-    }
-    
-    config.files = jsonObj.files;
-    
-    // Delete to not include in data context
-    delete jsonObj.options;
-    delete jsonObj.files;
+// Initialize context (data for templates)
+function initContext(params) {
+  if (params.help) {
+    help();
+    return { ok: false };
   }
-  
-  context = jsonObj;
-  
-  // Ensure context.items is an array
-  if (context.items === undefined) {
-    context.items = [];
-  } else if (!(context.items instanceof Array)) {
-    context.items = [context.items];  // Convert to array if not already
+  let ctx;
+  if (params.configuration) {
+    try {
+      ctx = require(path.resolve(process.cwd(), params.configuration));
+    } catch (err) {
+      console.error(`Context JSON ${params.configuration} not found or invalid`);
+      return { ok: false };
+    }
+  } else {
+    // fallback: use raw parameters as context
+    ctx = Object.assign({}, params);
+    delete ctx._; delete ctx.config; delete ctx.configuration;
+    delete ctx.templates; delete ctx.templateDir;
+    delete ctx.outputDir; delete ctx.destination;
+    delete ctx.zip; delete ctx.help; delete ctx.debug;
+    delete ctx.openDelimiter; delete ctx.closeDelimiter;
   }
-} catch (err) {
-  console.error(`Error reading or parsing JSON file at ${infoPath}: ${err.message}`);
-  process.exit(3);
+  return { ok: true, context: ctx };
 }
 
-/**
- * Renders a single template file with the specified context and delimiters
- */
-function renderTemplate(templateFilePath, outputFilePath, ctx, openDel, closeDel) {
-  // Get file-specific delimiters if configured
-  const fileName = path.basename(templateFilePath);
-  const fileConfig = config.files[fileName] || {};
-  
-  const openDelimiter = fileConfig.openDelimiter || openDel || globalOpenDelimiter;
-  const closeDelimiter = fileConfig.closeDelimiter || closeDel || globalCloseDelimiter;
-
+// Render a single file with context and delimiters
+function renderTemplate(srcPath, outPath, ctx, openDel, closeDel) {
+  const fileName = path.basename(srcPath);
+  const fileCfg  = tplConfig.files[fileName] || {};
+  const od = fileCfg.openDelimiter || openDel;
+  const cd = fileCfg.closeDelimiter || closeDel;
   try {
-    // Read template file as string
-    const template = fs.readFileSync(templateFilePath, 'utf8');
-    
-    // Configuration Markup.js Delimiters
-    const options = {
-      openDelimiter: openDelimiter,
-      closeDelimiter: closeDelimiter
-    };
-    
-    console.log(`Rendering ${templateFilePath} with delimiters '${openDelimiter}' and '${closeDelimiter}'`);
-    
-    // Render the template
-    const output = Mark.up(template, ctx, options);
-    
-    // Create output directory if it doesn't exist
-    const outputDir = path.dirname(outputFilePath);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    const tpl = fs.readFileSync(srcPath, 'utf8');
+    console.log(`Rendering ${srcPath} with delimiters '${od}' and '${cd}'`);
+    const result = Mark.up(tpl, ctx, { openDelimiter: od, closeDelimiter: cd });
+    if (outPath === 'stdout') {
+      process.stdout.write(result);
+    } else {
+      mkdirp.sync(path.dirname(outPath));
+      fs.writeFileSync(outPath, result, 'utf8');
+      console.log(`Written to ${outPath}`);
     }
-    
-    // Write output
-    fs.writeFileSync(outputFilePath, output, 'utf8');
-    console.log(`Rendered output written to ${outputFilePath}`);
-    
     return true;
   } catch (err) {
-    console.error(`Error processing template ${templateFilePath}: ${err.message}`);
+    console.error(`Error rendering ${srcPath}: ${err.message}`);
     return false;
   }
 }
 
-// Process files based on mode
-if (isDirectoryMode) {
-  // Directory mode: process all files in the template directory
-  try {
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-    
-    const files = fs.readdirSync(templateDir);
-    let successCount = 0;
-    
-    for (const file of files) {
-      const templateFilePath = path.join(templateDir, file);
-      
-      // Skip directories and non-file entities
-      if (!fs.statSync(templateFilePath).isFile()) {
-        continue;
-      }
-      
-      const outputFilePath = path.join(outputDir, file);
-      
-      // Check if this file has specific configuration
-      const fileConfig = config.files[file] || {};
-      const openDelimiter = fileConfig.openDelimiter || globalOpenDelimiter;
-      const closeDelimiter = fileConfig.closeDelimiter || globalCloseDelimiter;
-      
-      if (renderTemplate(templateFilePath, outputFilePath, context, openDelimiter, closeDelimiter)) {
-        successCount++;
-      }
-    }
-    
-    console.log(`Successfully processed ${successCount} of ${files.length} files`);
-  } catch (err) {
-    console.error(`Error processing directory: ${err.message}`);
-    process.exit(4);
-  }
-} else {
-  // Single file mode
-  renderTemplate(templatePath, outPath || 'stdout', context, globalOpenDelimiter, globalCloseDelimiter);
-  
-  // If no output path is specified, print to stdout
-  if (!outPath) {
-    const template = fs.readFileSync(templatePath, 'utf8');
-    const options = {
-      openDelimiter: globalOpenDelimiter,
-      closeDelimiter: globalCloseDelimiter
-    };
-    const output = Mark.up(template, context, options);
-    process.stdout.write(output);
+// Process non-template commands (zip, .script exec)
+function zipGenerated(dir) {
+  const zipper = new EasyZip();
+  zipper.zipFolder(dir, () => {
+    zipper.writeToFile(`${dir}.zip`, () => console.log(`Zipped to ${dir}.zip`));
+  });
+}
+
+function processTemplateFile(src, dest, ctx) {
+  const ext = path.extname(src);
+  const stat = fs.statSync(src);
+  const tpl = fs.readFileSync(src, 'utf8');
+  const out = Mark.up(tpl, ctx);
+  if (ext === '.script') {
+    shell.pushd('-q', path.dirname(dest));
+    shell.exec(out);
+    shell.popd('-q');
+  } else {
+    fs.writeFileSync(dest, out, { mode: stat.mode });
   }
 }
 
-// Make script executable on Unix
+// Recursively generate directory tree
+function generateDir(srcDir, baseDir, destDir, ctx) {
+  fs.readdirSync(srcDir).forEach(item => {
+    const srcPath = path.join(srcDir, item);
+    const rel     = srcPath.substr(baseDir.length);
+    const destPath= path.join(destDir, rel);
+    if (fs.statSync(srcPath).isDirectory()) {
+      mkdirp.sync(destPath);
+      generateDir(srcPath, baseDir, destDir, ctx);
+    } else {
+      processTemplateFile(srcPath, destPath, ctx);
+    }
+  });
+}
+
+// MAIN
+const init = initContext(parameters);
+if (!init.ok) process.exit(1);
+const context = init.context;
+if (parameters.debug) console.log('Context:', context);
+
+// Determine mode
+let srcInput = parameters.templateDir || parameters.templates;
+if (!fs.existsSync(srcInput)) {
+  console.error(`Source path ${srcInput} not found`);
+  process.exit(1);
+}
+const stat = fs.statSync(srcInput);
+
+if (stat.isDirectory()) {
+  // Batch directory mode
+  const outDir = parameters.outputDir || parameters.destination;
+  mkdirp.sync(outDir);
+  generateDir(srcInput, srcInput, outDir, context);
+  console.log(`Successfully processed directory ${srcInput}`);
+  if (parameters.zip) zipGenerated(outDir);
+} else {
+  // Single file mode
+  const outFile = parameters.destination || parameters.outputDir || 'stdout';
+  renderTemplate(srcInput, outFile, context, globalOpen, globalClose);
+}
+
+// Make executable
 if (process.platform !== 'win32') {
-  try {
-    fs.chmodSync(__filename, 0o755);
-  } catch (_) {}
+  try { fs.chmodSync(__filename, 0o755); } catch {};
 }
