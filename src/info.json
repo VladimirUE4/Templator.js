@@ -1,12 +1,38 @@
 {
+  "options": {
+    "delimiters": {
+      "open": "{{",
+      "close": "}}"
+    }
+  },
+  "files": {
+    "template.yaml": {
+      "openDelimiter": "[[",
+      "closeDelimiter": "]]"
+    },
+    "template3.yaml": {
+      "openDelimiter": "[[",
+      "closeDelimiter": "]]"
+    }
+  },
+  "app_name": "MyApp",
+  "app_port": 3000,
   "title": "Your Report Title",
   "author": {
-    "age":30,
+    "age": 30,
     "name": "Your Name",
     "email": "your@email.com"
   },
   "items": [
     { "name": "First Item", "value": 42 },
     { "name": "Second Item", "value": 24 }
-  ]
+  ],
+  "region": "eu-west-1",
+  "instance_type": "t3.medium",
+  "replicas": 3,
+  "location": "Paris",
+  "date": "2025-04-18",
+  "unit": "Celsius",
+  "alerts_enabled": true
+
 }

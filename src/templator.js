@@ -1,95 +1,220 @@
 #!/usr/bin/env node
 /**
- * CLI script to render a template file (YAML or any text) using Markup.js
- * Fixed version to properly handle custom delimiters
+ * Enhanced Templator CLI
+ * Renders templates using Markup.js with support for:
+ * - Processing entire directories
+ * - Custom delimiters per file via JSON configuration
+ * - Single file operation or batch processing
  */
 
 const fs = require('fs');
 const path = require('path');
-const Mark = require('./markup.js');
+const Mark = require('./markup.js'); // Markup.js est supposé être dans le même dossier
 
 // Parse CLI arguments
 const argv = process.argv.slice(2);
-let openDelimiter = '{{';
-let closeDelimiter = '}}';
-const files = [];
+let configPath = null;
+let globalOpenDelimiter = '{{';
+let globalCloseDelimiter = '}}';
+let templateDir = null;
+let outputDir = null;
+let infoPath = null;
+let templatePath = null;
+let outPath = null;
+let isDirectoryMode = false;
 
+// Parse arguments
 for (let i = 0; i < argv.length; i++) {
   const arg = argv[i];
-  if (arg === '--openDelimiter' || arg === '-o') {
-    openDelimiter = argv[++i];
+  if (arg === '--config' || arg === '-f') {
+    configPath = argv[++i];
+  } else if (arg === '--openDelimiter' || arg === '-o') {
+    globalOpenDelimiter = argv[++i];
   } else if (arg === '--closeDelimiter' || arg === '-c') {
-    closeDelimiter = argv[++i];
-  } else {
-    files.push(arg);
+    globalCloseDelimiter = argv[++i];
+  } else if (arg === '--templateDir' || arg === '-t') {
+    templateDir = argv[++i];
+    isDirectoryMode = true;
+  } else if (arg === '--outputDir' || arg === '-d') {
+    outputDir = argv[++i];
+  } else if (!infoPath) {
+    infoPath = arg;
+  } else if (!templatePath) {
+    templatePath = arg;
+  } else if (!outPath) {
+    outPath = arg;
   }
 }
 
-const [infoPath, templatePath, outPath] = files;
-
-if (!infoPath || !templatePath) {
-  console.error('Usage: run-markup.js [--openDelimiter <open>] [--closeDelimiter <close>] <info.json> <template.yaml> [output.txt]');
+// Validate inputs
+if (isDirectoryMode && (!infoPath || !templateDir || !outputDir)) {
+  console.error('Directory mode usage: templator.js --config <config.json> --templateDir <template_dir> --outputDir <output_dir> <info.json>');
   process.exit(1);
 }
 
+if (!isDirectoryMode && (!infoPath || !templatePath)) {
+  console.error('Single file usage: templator.js [--config <config.json>] [--openDelimiter <open>] [--closeDelimiter <close>] <info.json> <template.yaml> [output.txt]');
+  process.exit(1);
+}
+
+// Load configuration if specified
+let config = { files: {} };
+if (configPath) {
+  try {
+    const configData = fs.readFileSync(configPath, 'utf8');
+    config = JSON.parse(configData);
+    
+    if (!config.files) {
+      config.files = {};
+    }
+    
+    // Set global delimiters from config if present
+    if (config.options && config.options.delimiters) {
+      if (config.options.delimiters.open) {
+        globalOpenDelimiter = config.options.delimiters.open;
+      }
+      if (config.options.delimiters.close) {
+        globalCloseDelimiter = config.options.delimiters.close;
+      }
+    }
+  } catch (err) {
+    console.error(`Error reading or parsing config file at ${configPath}: ${err.message}`);
+    process.exit(2);
+  }
+}
+
 // Read and parse context JSON
+// Lire et parser le contexte JSON
 let context;
 try {
   const jsonData = fs.readFileSync(infoPath, 'utf8');
-  context = JSON.parse(jsonData);
+  const jsonObj = JSON.parse(jsonData);
   
-  // Verified that context is an object
+  // Extraire la configuration si elle existe
+  if (jsonObj.options) {
+    if (jsonObj.options.delimiters) {
+      if (jsonObj.options.delimiters.open) {
+        globalOpenDelimiter = jsonObj.options.delimiters.open;
+      }
+      if (jsonObj.options.delimiters.close) {
+        globalCloseDelimiter = jsonObj.options.delimiters.close;
+      }
+    }
+    
+    if (jsonObj.files) {
+      config.files = jsonObj.files;
+    }
+    
+    // Supprimer les options de configuration pour ne pas les considérer comme des données
+    delete jsonObj.options;
+    delete jsonObj.files;
+  }
+  
+  context = jsonObj;
+  
+  // Assurer que context.items est un tableau
   if (context.items === undefined) {
     context.items = [];
   } else if (!(context.items instanceof Array)) {
-    context.items = [context.items]; // Convert to array if not already
+    context.items = [context.items];
   }
 } catch (err) {
   console.error(`Error reading or parsing JSON file at ${infoPath}: ${err.message}`);
-  process.exit(2);
-}
-
-// Read template file as string
-let template;
-try {
-  template = fs.readFileSync(templatePath, 'utf8');
-} catch (err) {
-  console.error(`Error reading template file at ${templatePath}: ${err.message}`);
   process.exit(3);
 }
-
-// Render using Markup.js with delimiters
-let output;
-try {
-  // Configuration Markup.js Delimiters
-  const options = {
-    openDelimiter: openDelimiter,
-    closeDelimiter: closeDelimiter
-  };
+/**
+ * Renders a single template file with the specified context and delimiters
+ */
+function renderTemplate(templateFilePath, outputFilePath, ctx, openDel, closeDel) {
+  // Get file-specific delimiters if configured
+  const fileName = path.basename(templateFilePath);
+  const fileConfig = config.files[fileName] || {};
   
+  const openDelimiter = fileConfig.openDelimiter || openDel || globalOpenDelimiter;
+  const closeDelimiter = fileConfig.closeDelimiter || closeDel || globalCloseDelimiter;
 
-  console.error(`INFO: Rendering template with delimiters '${openDelimiter}' and '${closeDelimiter}'`);
-  console.error(`INFO: Context data structure: ${Object.keys(context).join(', ')}`);
-  
-  output = Mark.up(template, context, options);
-} catch (err) {
-  console.error(`Error rendering template: ${err.message}`);
-  console.error(`Template: ${template.substring(0, 100)}...`);
-  console.error(`Context keys: ${Object.keys(context).join(', ')}`);
-  process.exit(4);
+  try {
+    // Read template file as string
+    const template = fs.readFileSync(templateFilePath, 'utf8');
+    
+    // Configuration Markup.js Delimiters
+    const options = {
+      openDelimiter: openDelimiter,
+      closeDelimiter: closeDelimiter
+    };
+    
+    console.log(`Rendering ${templateFilePath} with delimiters '${openDelimiter}' and '${closeDelimiter}'`);
+    
+    // Render the template
+    const output = Mark.up(template, ctx, options);
+    
+    // Create output directory if it doesn't exist
+    const outputDir = path.dirname(outputFilePath);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    // Write output
+    fs.writeFileSync(outputFilePath, output, 'utf8');
+    console.log(`Rendered output written to ${outputFilePath}`);
+    
+    return true;
+  } catch (err) {
+    console.error(`Error processing template ${templateFilePath}: ${err.message}`);
+    return false;
+  }
 }
 
-// Write output
-if (outPath) {
+// Process files based on mode
+if (isDirectoryMode) {
+  // Directory mode: process all files in the template directory
   try {
-    fs.writeFileSync(outPath, output, 'utf8');
-    console.log(`Rendered output written to ${outPath}`);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    const files = fs.readdirSync(templateDir);
+    let successCount = 0;
+    
+    for (const file of files) {
+      const templateFilePath = path.join(templateDir, file);
+      
+      // Skip directories and non-file entities
+      if (!fs.statSync(templateFilePath).isFile()) {
+        continue;
+      }
+      
+      const outputFilePath = path.join(outputDir, file);
+      
+      // Check if this file has specific configuration
+      const fileConfig = config.files[file] || {};
+      const openDelimiter = fileConfig.openDelimiter || globalOpenDelimiter;
+      const closeDelimiter = fileConfig.closeDelimiter || globalCloseDelimiter;
+      
+      if (renderTemplate(templateFilePath, outputFilePath, context, openDelimiter, closeDelimiter)) {
+        successCount++;
+      }
+    }
+    
+    console.log(`Successfully processed ${successCount} of ${files.length} files`);
   } catch (err) {
-    console.error(`Error writing output to ${outPath}: ${err.message}`);
-    process.exit(5);
+    console.error(`Error processing directory: ${err.message}`);
+    process.exit(4);
   }
 } else {
-  process.stdout.write(output);
+  // Single file mode
+  renderTemplate(templatePath, outPath || 'stdout', context, globalOpenDelimiter, globalCloseDelimiter);
+  
+  // If no output path is specified, print to stdout
+  if (!outPath) {
+    const template = fs.readFileSync(templatePath, 'utf8');
+    const options = {
+      openDelimiter: globalOpenDelimiter,
+      closeDelimiter: globalCloseDelimiter
+    };
+    const output = Mark.up(template, context, options);
+    process.stdout.write(output);
+  }
 }
 
 // Make script executable on Unix

@@ -1,0 +1,15 @@
+---
+environment:
+  application: "{{app_name}}"
+  port: {{app_port}}
+
+  deployment:
+    region: "{{region}}"
+    instance_type: "{{instance_type}}"
+    replicas: {{replicas}}
+
+  maintainer:
+    full_name: "{{author.name}}"
+    contact: "{{author.email}}"
+    age: {{author.age}}
+

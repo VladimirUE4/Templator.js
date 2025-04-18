@@ -1,0 +1,7 @@
+---
+weather_report:
+  location: "[[location]]"
+  date: "[[date]]"
+  unit: "[[unit]]"
+
+  alerts_enabled: [[alerts_enabled]]
