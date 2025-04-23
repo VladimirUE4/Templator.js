@@ -49,26 +49,23 @@ var Mark = {
     // Pass a value through a series of pipe expressions, e.g. _pipe(123, ["add>10","times>5"]).
     _pipe: function (val, expressions) {
         var expression, parts, fn, result;
-
-        // If val is undefined, return an empty string
-        if (val === undefined) {
-            return "";
-        }
-
-        // If we have expressions, pull out the first one, e.g. "add>10".
+    
         if ((expression = expressions.shift())) {
 
-            // Split the expression into its component parts, e.g. ["add", "10"].
             parts = expression.split(this.delimiter);
-
-            // Pull out the function name, e.g. "add".
+    
             fn = parts.shift().trim();
-
+    
             try {
-                // Run the function, e.g. add(123, 10) ...
-                result = Mark.pipes[fn].apply(null, [val].concat(parts));
-
-                // ... then pipe again with remaining expressions.
+                //if blank and value undefined
+                if (fn === "blank" && val === undefined) {
+                    result = Mark.pipes[fn].apply(null, [val].concat(parts));
+                } else if (val === undefined && fn !== "blank") {
+                    return "";
+                } else {
+                    result = Mark.pipes[fn].apply(null, [val].concat(parts));
+                }
+    
                 val = this._pipe(result, expressions);
             }
             catch (e) {
@@ -76,7 +73,6 @@ var Mark = {
             }
         }
 
-        // Return the piped value.
         return val;
     },
 
